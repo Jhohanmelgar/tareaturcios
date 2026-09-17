@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Photobooth con marco</title>
+<style>
+/* ---------- Base ---------- */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap');
+
+:root {
+  --sunset1: #ff9a3c;
+  --sunset2: #ff6361;
+  --sunset3: #bc5090;
+  --cream: #fff8f0;
+  --ink: #2e1a2e;
+  --muted: #8a6d78;
+  --white: #ffffff;
+}
+
+* { box-sizing: border-box; }
+
+/* Asegura que [hidden] siga ocultando el elemento aunque la clase
+   tenga display:flex (si no, .stage/.result quedarían visibles). */
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: linear-gradient(160deg, var(--sunset1), var(--sunset2) 55%, var(--sunset3));
+  color: var(--ink);
+  font-family: 'Poppins', 'Segoe UI', Arial, sans-serif;
+  display: flex;
+  justify-content: center;
+  padding: 36px 16px;
+}
+
+.app {
+  width: 100%;
+  max-width: 780px;
+  background: var(--cream);
+  border-radius: 28px;
+  padding: 28px 24px 32px;
+  box-shadow: 0 20px 50px rgba(46, 26, 46, 0.35);
+}
+
+/* ---------- Header ---------- */
+.app__header {
+  text-align: center;
+  margin-bottom: 22px;
+}
+
+.app__badge {
+  display: inline-block;
+  background: var(--sunset3);
+  color: var(--white);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 5px 14px;
+  border-radius: 999px;
+  margin-bottom: 10px;
+}
+
+.app__header h1 {
+  margin: 0 0 6px;
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.app__header p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+/* ---------- Controls ---------- */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+
+.btn {
+  border: none;
+  border-radius: 999px;
+  padding: 13px 22px;
+  font-size: 14px;
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn:hover { transform: translateY(-2px); }
+.btn:active { transform: translateY(0); }
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn--primary {
+  background: var(--ink);
+  color: var(--white);
+}
+
+.btn--secondary {
+  background: var(--white);
+  color: var(--ink);
+  border: 2px solid var(--sunset3);
+}
+
+.btn--accent {
+  background: linear-gradient(120deg, var(--sunset2), var(--sunset3));
+  color: var(--white);
+  box-shadow: 0 8px 20px rgba(188, 80, 144, 0.4);
+}
+
+.file-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.text-input {
+  flex: 1 1 220px;
+  max-width: 320px;
+  padding: 13px 18px;
+  border-radius: 999px;
+  border: 2px solid #f0d9c8;
+  background: var(--white);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+}
+
+.text-input:focus { border-color: var(--sunset2); }
+.text-input::placeholder { color: #c9b3bd; }
+
+/* ---------- Status ---------- */
+.status {
+  text-align: center;
+  min-height: 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sunset3);
+  margin: 0 0 16px;
+}
+
+/* ---------- Stage (live preview) ---------- */
+.stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.stage__frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: var(--ink);
+  border-radius: 22px;
+  overflow: hidden;
+  border: 6px solid var(--white);
+  box-shadow: 0 14px 34px rgba(46, 26, 46, 0.3);
+}
+
+#video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1); /* efecto espejo, más natural para selfies */
+}
+
+#frameOverlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill; /* el marco ya viene diseñado en proporción 4:3 */
+  pointer-events: none;
+  display: none;
+}
+
+.live-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 4%;
+  text-align: center;
+  font-size: 4.2vw;
+  font-weight: 700;
+  color: var(--white);
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+}
+
+/* ---------- Result ---------- */
+.result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+#photoCanvas {
+  width: 100%;
+  max-width: 780px;
+  aspect-ratio: 4 / 3;
+  border-radius: 22px;
+  border: 6px solid var(--white);
+  box-shadow: 0 14px 34px rgba(46, 26, 46, 0.3);
+}
+
+.result__actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="app__header">
+    <span class="app__badge">Actividad 1</span>
+    <h1>📸 Photobooth con marco</h1>
+    <p>Activa la cámara, elige tu marco PNG (diseñado en Canva) y captura tu foto</p>
+  </header>
+
+  <section class="controls">
+    <button id="btnStartCamera" class="btn btn--primary">🎥 Activar cámara</button>
+
+    <label class="btn btn--secondary file-label">
+      🖼️ Elegir marco (PNG)
+      <input type="file" id="frameInput" accept="image/png" hidden>
+    </label>
+
+    <input
+      type="text"
+      id="studentName"
+      class="text-input"
+      placeholder="Nombre del estudiante o mensaje"
+      maxlength="60"
+    >
+  </section>
+
+  <p id="statusMsg" class="status"></p>
+
+  <!-- Vista en vivo: video + marco superpuesto -->
+  <section class="stage" id="liveStage">
+    <div class="stage__frame">
+      <video id="video" autoplay playsinline></video>
+      <img id="frameOverlay" alt="Marco seleccionado">
+      <div id="livePreviewText" class="live-caption"></div>
+    </div>
+
+    <button id="btnCapture" class="btn btn--accent" disabled>
+      📷 Capturar foto
+    </button>
+  </section>
+
+  <!-- Resultado: foto ya capturada -->
+  <section class="result" id="resultStage" hidden>
+    <canvas id="photoCanvas" width="1200" height="900"></canvas>
+
+    <div class="result__actions">
+      <button id="btnDownload" class="btn btn--accent">⬇️ Descargar PNG</button>
+      <button id="btnRetake" class="btn btn--secondary">🔁 Tomar otra foto</button>
+    </div>
+  </section>
+
+</div>
+
+<script>
+/* =========================================================
+   CABINA DE FOTOS CON MARCO
+   - Activa la webcam
+   - Superpone un marco PNG (transparente en el centro)
+   - Captura video + marco + texto en un <canvas>
+   - Descarga el resultado como PNG
+   ========================================================= */
+
+// ---------- Referencias del DOM ----------
+const btnStartCamera = document.getElementById('btnStartCamera');
+const frameInput = document.getElementById('frameInput');
+const studentNameInput = document.getElementById('studentName');
+const statusMsg = document.getElementById('statusMsg');
+
+const video = document.getElementById('video');
+const frameOverlay = document.getElementById('frameOverlay');
+const livePreviewText = document.getElementById('livePreviewText');
+const btnCapture = document.getElementById('btnCapture');
+
+const liveStage = document.getElementById('liveStage');
+const resultStage = document.getElementById('resultStage');
+const photoCanvas = document.getElementById('photoCanvas');
+const btnDownload = document.getElementById('btnDownload');
+const btnRetake = document.getElementById('btnRetake');
+
+const ctx = photoCanvas.getContext('2d');
+
+// ---------- Estado ----------
+let cameraStream = null;
+let frameImage = null; // objeto Image() con el marco PNG cargado
+let cameraReady = false;
+
+// Resolución interna de trabajo del canvas (proporción 4:3)
+const CANVAS_W = photoCanvas.width;   // 1200
+const CANVAS_H = photoCanvas.height; // 900
+
+// ---------- Utilidades ----------
+function setStatus(text, isError = false) {
+  statusMsg.textContent = text;
+  statusMsg.style.color = isError ? '#ff6b6b' : '#e94560';
+}
+
+function updateCaptureAvailability() {
+  // Se puede capturar en cuanto la cámara está lista.
+  // El marco es opcional: si no se eligió, se captura solo la foto.
+  btnCapture.disabled = !cameraReady;
+}
+
+// ---------- 1) Activar la cámara ----------
+async function startCamera() {
+  try {
+    setStatus('Solicitando acceso a la cámara...');
+
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 1280 }, height: { ideal: 960 } },
+      audio: false
+    });
+
+    video.srcObject = cameraStream;
+    await video.play();
+
+    cameraReady = true;
+    updateCaptureAvailability();
+    setStatus('Cámara activada. Ya puedes capturar tu foto.');
+  } catch (err) {
+    console.error(err);
+    setStatus(
+      'No se pudo acceder a la cámara. Revisa los permisos del navegador.',
+      true
+    );
+  }
+}
+
+btnStartCamera.addEventListener('click', startCamera);
+
+// ---------- 2) Seleccionar el marco PNG desde la computadora ----------
+frameInput.addEventListener('change', (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  if (file.type !== 'image/png') {
+    setStatus('Por favor selecciona un archivo PNG.', true);
+    return;
+  }
+
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+
+  img.onload = () => {
+    frameImage = img;
+
+    // Mostrar el marco encima del video (vista en vivo)
+    frameOverlay.src = url;
+    frameOverlay.style.display = 'block';
+
+    setStatus('Marco cargado correctamente.');
+  };
+
+  img.onerror = () => {
+    setStatus('No se pudo cargar la imagen del marco.', true);
+  };
+
+  img.src = url;
+});
+
+// ---------- 3) Mostrar en vivo el nombre / mensaje ----------
+studentNameInput.addEventListener('input', () => {
+  livePreviewText.textContent = studentNameInput.value;
+});
+
+// ---------- 4) Dibujar el video en el canvas con efecto "cover" ----------
+// Evita que la imagen se deforme sin importar la resolución de la cámara.
+function drawVideoCover(context, videoEl, destW, destH, mirror) {
+  const vw = videoEl.videoWidth;
+  const vh = videoEl.videoHeight;
+  if (!vw || !vh) return;
+
+  const videoRatio = vw / vh;
+  const destRatio = destW / destH;
+
+  let sx, sy, sw, sh;
+
+  if (videoRatio > destRatio) {
+    // El video es más ancho: recortamos los costados
+    sh = vh;
+    sw = vh * destRatio;
+    sx = (vw - sw) / 2;
+    sy = 0;
+  } else {
+    // El video es más alto: recortamos arriba/abajo
+    sw = vw;
+    sh = vw / destRatio;
+    sx = 0;
+    sy = (vh - sh) / 2;
+  }
+
+  context.save();
+  if (mirror) {
+    // Efecto espejo, igual que en la vista previa
+    context.translate(destW, 0);
+    context.scale(-1, 1);
+  }
+  context.drawImage(videoEl, sx, sy, sw, sh, 0, 0, destW, destH);
+  context.restore();
+}
+
+// ---------- 5) Dibujar el texto (nombre / mensaje) sobre la foto ----------
+function drawCaption(context, text, destW, destH) {
+  if (!text) return;
+
+  const fontSize = Math.round(destW * 0.035);
+  context.font = `700 ${fontSize}px Segoe UI, Arial, sans-serif`;
+  context.textAlign = 'center';
+  context.textBaseline = 'bottom';
+
+  const x = destW / 2;
+  const y = destH * 0.96;
+
+  // Sombra para que el texto se lea sobre cualquier fondo
+  context.shadowColor = 'rgba(0,0,0,0.75)';
+  context.shadowBlur = 8;
+  context.shadowOffsetY = 2;
+
+  context.fillStyle = '#ffffff';
+  context.fillText(text, x, y);
+
+  // Reset de sombra para no afectar otros dibujos
+  context.shadowColor = 'transparent';
+  context.shadowBlur = 0;
+  context.shadowOffsetY = 0;
+}
+
+// ---------- 6) Capturar la fotografía ----------
+btnCapture.addEventListener('click', () => {
+  if (!cameraReady) {
+    setStatus('Primero activa la cámara.', true);
+    return;
+  }
+
+  // Limpiar el canvas
+  ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+
+  // 1. Video (con efecto espejo, igual que la vista previa)
+  drawVideoCover(ctx, video, CANVAS_W, CANVAS_H, true);
+
+  // 2. Marco PNG encima (sin espejo, para que cualquier texto/logo se lea bien)
+  if (frameImage) {
+    ctx.drawImage(frameImage, 0, 0, CANVAS_W, CANVAS_H);
+  }
+
+  // 3. Nombre del estudiante / mensaje
+  drawCaption(ctx, studentNameInput.value.trim(), CANVAS_W, CANVAS_H);
+
+  // Mostrar el resultado y ocultar la vista en vivo
+  liveStage.hidden = true;
+  resultStage.hidden = false;
+  setStatus('Foto capturada. Ya puedes descargarla.');
+});
+
+// ---------- 7) Descargar la fotografía en PNG ----------
+btnDownload.addEventListener('click', () => {
+  const dataUrl = photoCanvas.toDataURL('image/png');
+
+  const link = document.createElement('a');
+  const fileName = `foto-${Date.now()}.png`;
+
+  link.href = dataUrl;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  setStatus(`Descargada como ${fileName}`);
+});
+
+// ---------- 8) Tomar otra foto ----------
+btnRetake.addEventListener('click', () => {
+  resultStage.hidden = true;
+  liveStage.hidden = false;
+  setStatus('Listo para capturar otra foto.');
+});
+
+// Estado inicial de los botones
+updateCaptureAvailability();
+
+</script>
+</body>
+</html>
